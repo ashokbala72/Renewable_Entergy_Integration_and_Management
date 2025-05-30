@@ -108,6 +108,7 @@ with tabs[2]:
 
 
 
+
 with tabs[3]:
     st.subheader("📉 Market Demand vs Predicted Output (UK Grid)")
     st.markdown("✅ **Data Source:** Live feed simulated from [National Grid ESO (UK)](https://www.nationalgrideso.com/energy-data-dashboard)")
@@ -116,12 +117,18 @@ with tabs[3]:
 
     st.markdown("### 📈 Demand vs Output Chart")
     st.line_chart(uk_demand_df.set_index("time")[["market_demand_mw", "predicted_output_mw"]])
-    try:
-        insight_prompt = f"""
-You are a grid optimization analyst. Provide a short punchline-style observation on the predicted output vs market demand using this data:
 
-{uk_demand_df.head().to_markdown(index=False)}
+    try:
+        sample_df = uk_demand_df[['time', 'market_demand_mw', 'predicted_output_mw']].head()
+        sample_df['time'] = sample_df['time'].dt.strftime('%Y-%m-%d %H:%M')
+        sample_text = sample_df.to_string(index=False)
+
+        insight_prompt = f"""
+You are a grid optimization analyst. Based on the table below of market demand vs predicted output, write a one-line summary describing the current trend or gap.
+
+{sample_text}
 """
+
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": insight_prompt}],
@@ -131,6 +138,7 @@ You are a grid optimization analyst. Provide a short punchline-style observation
         st.success(f"🔍 GenAI Insight: {punchline}")
     except Exception as e:
         st.warning("Unable to fetch GenAI punchline.")
+        st.error(f"Debug info: {str(e)}")
 
 with tabs[4]:
     st.subheader("🧠 GenAI Actions")
