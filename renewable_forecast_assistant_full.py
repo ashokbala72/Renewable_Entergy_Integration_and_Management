@@ -140,13 +140,17 @@ You are a grid optimization analyst. Based on the table below of market demand v
         st.warning("Unable to fetch GenAI punchline.")
         st.error(f"Debug info: {str(e)}")
 
+
 with tabs[4]:
     st.subheader("🧠 GenAI Actions")
     try:
         latest_row = prediction_df.iloc[-1]
         latest_sensor = sensor_df.iloc[-1]
+        latest_market_demand = uk_demand_df.iloc[-1]['market_demand_mw']
+
         context = f"""
 Predicted Output: {latest_row['predicted_output_mw']:.2f} MW  
+Market Demand: {latest_market_demand:.2f} MW  
 Temperature: {latest_row['temperature_2m']:.1f} °C  
 Wind Speed: {latest_row['windspeed_10m']:.1f} m/s  
 Solar Irradiance: {latest_row['shortwave_radiation']:.0f} W/m²  
@@ -156,7 +160,11 @@ Inverter Status: {latest_sensor['inverter_status']}
 """
 
         prompt = f"""
-You are a renewable energy system advisor. Based on the following data, provide 3 specific and actionable recommendations to improve energy performance or grid reliability. For each recommendation, cite the data points that justify it.
+You are a renewable energy system advisor. Based on the current system data and grid demand, provide 3 specific and actionable recommendations.
+
+- If predicted output exceeds demand, suggest ways to avoid overproduction or store excess.
+- If output is below demand, suggest how to optimize generation.
+- Justify each recommendation using relevant data points.
 
 Input Data:
 {context}
@@ -165,16 +173,16 @@ Input Data:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=300
+            max_tokens=350
         )
 
         st.markdown("### 📊 Input Parameters")
         st.markdown(context)
         st.markdown("### ✅ GenAI Action Recommendations")
         st.markdown(response.choices[0].message.content)
+
     except Exception as e:
         st.error(f"⚠️ Unable to generate GenAI Actions: {e}")
-
 
 with tabs[5]:
     st.subheader("💬 Ask My Assistant")
