@@ -1,3 +1,4 @@
+# renewable_forecast_assistant_full.py (Updated with Overview Tab)
 
 import streamlit as st
 import pandas as pd
@@ -20,8 +21,9 @@ st_autorefresh(interval=60 * 1000, key='refresh_key')
 now = pd.Timestamp.now()
 remaining = 60 - int(time.time()) % 60
 mins, secs = divmod(remaining, 60)
-st.caption(f"🕓 Last refreshed at {now.strftime('%H:%M:%S')}, ⏳ Auto-refreshing in {mins:02d}:{secs:02d}")
+st.caption(f"\U0001F553 Last refreshed at {now.strftime('%H:%M:%S')}, \u23F3 Auto-refreshing in {mins:02d}:{secs:02d}")
 
+# --- Data Functions ---
 def fetch_weather_forecast(lat=28.61, lon=77.23):
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,windspeed_10m,shortwave_radiation&forecast_days=1&timezone=auto"
     response = requests.get(url)
@@ -66,7 +68,6 @@ def predict_output(weather_df, sensor_df):
 
 def fetch_uk_market_demand():
     try:
-        # Placeholder for actual UK API. Simulating with random data.
         time_series = pd.date_range(start=pd.Timestamp.now(), periods=10, freq='H')
         demand = np.random.uniform(10, 25, size=10)
         return pd.DataFrame({'time': time_series, 'market_demand_mw': demand})
@@ -81,41 +82,79 @@ hist_df = simulate_historical_production()
 uk_demand_df = fetch_uk_market_demand()
 uk_demand_df['predicted_output_mw'] = prediction_df['predicted_output_mw'].values
 
-tabs = st.tabs([
+# Tabs
+main_tabs = st.tabs([
+    "📌 Overview",
     "🌤️ Weather Forecast",
     "📈 Historical Production",
     "🛰️ Live Sensor Feed",
     "📉 Demand vs Output",
     "🧠 GenAI Actions",
     "💬 Ask My Assistant",
-    "📊 Trading Assistant",
+    "📊 Trading Assistant"
 ])
 
-with tabs[0]:
+# --- Overview Tab ---
+with main_tabs[0]:
+    st.subheader("📌 System Overview")
+    st.markdown("""
+### 🔢 Inputs Used
+- **Weather Forecast**: Real-time via Open-Meteo API
+- **Live Sensor Data**: Simulated (voltage, current, inverter status)
+- **Historical Production**: Simulated data (last 168 hours)
+- **UK Market Demand**: Simulated for demo
+- **GenAI Inputs**: Real-time prompt calls using OpenAI
+
+### ⚙️ App Functions
+- Weather trends and sensor analysis
+- Compare forecasted vs market demand
+- Actionable GenAI suggestions
+- Q&A interface
+- Trading advisory recommendations
+
+### 🛠️ Tech Stack
+- **Streamlit**: Dashboard UI
+- **OpenAI GPT-3.5**: GenAI insights and strategy
+- **Open-Meteo API**: Weather feed
+- **Pandas / NumPy**: Processing
+- **Dotenv**: Secure key handling
+
+### 🌟 Benefits
+- Realtime grid visibility
+- Actionable advisory
+- Natural language interface
+- Auto-refreshing updates
+- Simulated trading advice
+
+### 🔧 Making It Production-Ready
+- Replace sensor and market data with real APIs
+- Add secure API authentication and fallback logic
+- Introduce model tuning and GenAI guardrails
+- Responsive UX, export options, alerts
+- Use DB backend, deploy via Docker/Cloud
+- Integrate CI/CD, logging, testing, and monitoring
+    """)
+
+# Reuse the original tab layout for tabs 1–7
+with main_tabs[1]:
     st.subheader("🌤️ Weather Forecast (Open-Meteo)")
     st.dataframe(weather_df)
     st.line_chart(weather_df.set_index("time")[["temperature_2m", "windspeed_10m"]])
 
-with tabs[1]:
+with main_tabs[2]:
     st.subheader("📈 Historical Production (Simulated)")
     st.line_chart(hist_df.set_index("timestamp")["actual_output_mw"])
 
-with tabs[2]:
+with main_tabs[3]:
     st.subheader("🛰️ Live Sensor Feed (Last 10 mins)")
     st.info("⏱️ This feed auto-refreshes every 60 seconds.")
     st.dataframe(sensor_df)
     st.line_chart(sensor_df.set_index("timestamp")[["voltage", "current"]])
 
-
-
-
-with tabs[3]:
+with main_tabs[4]:
     st.subheader("📉 Market Demand vs Predicted Output (UK Grid)")
     st.markdown("✅ **Data Source:** Live feed simulated from [National Grid ESO (UK)](https://www.nationalgrideso.com/energy-data-dashboard)")
-    st.markdown("### 📋 Demand vs Output Table")
     st.dataframe(uk_demand_df[['time', 'market_demand_mw', 'predicted_output_mw']])
-
-    st.markdown("### 📈 Demand vs Output Chart")
     st.line_chart(uk_demand_df.set_index("time")[["market_demand_mw", "predicted_output_mw"]])
 
     try:
@@ -140,8 +179,7 @@ You are a grid optimization analyst. Based on the table below of market demand v
         st.warning("Unable to fetch GenAI punchline.")
         st.error(f"Debug info: {str(e)}")
 
-
-with tabs[4]:
+with main_tabs[5]:
     st.subheader("🧠 GenAI Actions")
     try:
         latest_row = prediction_df.iloc[-1]
@@ -184,7 +222,7 @@ Input Data:
     except Exception as e:
         st.error(f"⚠️ Unable to generate GenAI Actions: {e}")
 
-with tabs[5]:
+with main_tabs[6]:
     st.subheader("💬 Ask My Assistant")
     col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
     with col2:
@@ -221,16 +259,14 @@ User Question:
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
-
-
-with tabs[6]:
+with main_tabs[7]:
     st.subheader("📊 Trading Assistant")
     try:
         latest_row = prediction_df.iloc[-1]
         market_row = uk_demand_df.iloc[-1]
         forecast_output = latest_row['predicted_output_mw']
         market_demand = market_row['market_demand_mw']
-        price_estimate = round(np.random.uniform(80, 140), 2)  # GBP per MWh simulated
+        price_estimate = round(np.random.uniform(80, 140), 2)
         timestamp = latest_row['time']
         context = f"""
 Timestamp: {timestamp}
