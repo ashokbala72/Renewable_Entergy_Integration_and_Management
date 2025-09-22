@@ -247,7 +247,7 @@ Input Data:
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=350
+            max_tokens=1000
         )
 
         st.markdown("### 📊 Input Parameters")
