@@ -204,7 +204,7 @@ You are a grid optimization analyst. Based on the table below of market demand v
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": insight_prompt}],
-            max_tokens=1000
+            max_tokens=1500
         )
         punchline = response.choices[0].message.content.strip()
         st.success(f"🔍 GenAI Insight: {punchline}")
