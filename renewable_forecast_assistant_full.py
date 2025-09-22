@@ -247,7 +247,7 @@ Input Data:
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1000
+            max_tokens=1500
         )
 
         st.markdown("### 📊 Input Parameters")
@@ -291,7 +291,7 @@ User Question:
                 response = client.chat.completions.create(
                     model=DEPLOYMENT_NAME,
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=250
+                    max_tokens=1500
                 )
                 st.markdown("### 🧠 Assistant Response")
                 st.markdown(response.choices[0].message.content)
@@ -333,7 +333,7 @@ Input Data:
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=350
+            max_tokens=1500
         )
 
         st.markdown("### 📈 Live Trading Data")
