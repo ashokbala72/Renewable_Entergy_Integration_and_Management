@@ -1,4 +1,4 @@
-# renewable_forecast_assistant_full.py (Azure OpenAI version)
+# renewable_forecast_assistant_full.py (Azure OpenAI version, aligned demand/output)
 # Streamlit dashboard for Renewable Energy Forecast & Trading Advisory
 
 import streamlit as st
@@ -98,7 +98,10 @@ sensor_df = simulate_live_sensors_stream()
 prediction_df = predict_output(weather_df, sensor_df)
 hist_df = simulate_historical_production()
 uk_demand_df = fetch_uk_market_demand()
-uk_demand_df['predicted_output_mw'] = prediction_df['predicted_output_mw'].values
+
+# Create aligned demand vs output dataframe
+demand_vs_output_df = uk_demand_df.copy()
+demand_vs_output_df['predicted_output_mw'] = prediction_df['predicted_output_mw'].values
 
 # -----------------------------
 # Tabs
@@ -133,28 +136,6 @@ with main_tabs[0]:
 - Actionable GenAI suggestions
 - Q&A interface
 - Trading advisory recommendations
-
-### 🛠️ Tech Stack
-- **Streamlit**: Dashboard UI
-- **Azure OpenAI GPT-4o**: GenAI insights and strategy
-- **Open-Meteo API**: Weather feed
-- **Pandas / NumPy**: Processing
-- **Dotenv**: Secure key handling
-
-### 🌟 Benefits
-- Realtime grid visibility
-- Actionable advisory
-- Natural language interface
-- Auto-refreshing updates
-- Simulated trading advice
-
-### 🔧 Making It Production-Ready
-- Replace sensor and market data with real APIs
-- Add secure API authentication and fallback logic
-- Introduce model tuning and GenAI guardrails
-- Responsive UX, export options, alerts
-- Use DB backend, deploy via Docker/Cloud
-- Integrate CI/CD, logging, testing, and monitoring
     """)
 
 # -----------------------------
@@ -186,12 +167,11 @@ with main_tabs[3]:
 # -----------------------------
 with main_tabs[4]:
     st.subheader("📉 Market Demand vs Predicted Output (UK Grid)")
-    st.markdown("✅ **Data Source:** Live feed simulated from [National Grid ESO (UK)](https://www.nationalgrideso.com/energy-data-dashboard)")
-    st.dataframe(uk_demand_df[['time', 'market_demand_mw', 'predicted_output_mw']])
-    st.line_chart(uk_demand_df.set_index("time")[["market_demand_mw", "predicted_output_mw"]])
+    st.dataframe(demand_vs_output_df[['time', 'market_demand_mw', 'predicted_output_mw']])
+    st.line_chart(demand_vs_output_df.set_index("time")[["market_demand_mw", "predicted_output_mw"]])
 
     try:
-        sample_df = uk_demand_df[['time', 'market_demand_mw', 'predicted_output_mw']].head()
+        sample_df = demand_vs_output_df[['time', 'market_demand_mw', 'predicted_output_mw']].head()
         sample_df['time'] = sample_df['time'].dt.strftime('%Y-%m-%d %H:%M')
         sample_text = sample_df.to_string(index=False)
 
@@ -200,11 +180,10 @@ You are a grid optimization analyst. Based on the table below of market demand v
 
 {sample_text}
 """
-
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": insight_prompt}],
-            max_tokens=1500
+            max_tokens=800
         )
         punchline = response.choices[0].message.content.strip()
         st.success(f"🔍 GenAI Insight: {punchline}")
@@ -218,43 +197,28 @@ You are a grid optimization analyst. Based on the table below of market demand v
 with main_tabs[5]:
     st.subheader("🧠 GenAI Actions")
     try:
-        latest_row = prediction_df.iloc[-1]
+        latest_row = demand_vs_output_df.iloc[-1]
         latest_sensor = sensor_df.iloc[-1]
-        latest_market_demand = uk_demand_df.iloc[-1]['market_demand_mw']
 
         context = f"""
 Predicted Output: {latest_row['predicted_output_mw']:.2f} MW  
-Market Demand: {latest_market_demand:.2f} MW  
-Temperature: {latest_row['temperature_2m']:.1f} °C  
-Wind Speed: {latest_row['windspeed_10m']:.1f} m/s  
-Solar Irradiance: {latest_row['shortwave_radiation']:.0f} W/m²  
+Market Demand: {latest_row['market_demand_mw']:.2f} MW  
+Temperature: {latest_row.get('temperature_2m', 0):.1f} °C  
+Wind Speed: {latest_row.get('windspeed_10m', 0):.1f} m/s  
+Solar Irradiance: {latest_row.get('shortwave_radiation', 0):.0f} W/m²  
 Voltage: {latest_sensor['voltage']:.1f} V  
 Current: {latest_sensor['current']:.1f} A  
 Inverter Status: {latest_sensor['inverter_status']}
 """
-
         prompt = f"""
 You are a renewable energy system advisor. Based on the current system data and grid demand, provide 3 specific and actionable recommendations.
-
-- If predicted output exceeds demand, suggest ways to avoid overproduction or store excess.
-- If output is below demand, suggest how to optimize generation.
-- Justify each recommendation using relevant data points.
-
-Input Data:
-{context}
 """
-
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500
+            messages=[{"role": "user", "content": prompt + "\n\n" + context}],
+            max_tokens=800
         )
-
-        st.markdown("### 📊 Input Parameters")
-        st.markdown(context)
-        st.markdown("### ✅ GenAI Action Recommendations")
         st.markdown(response.choices[0].message.content)
-
     except Exception as e:
         st.error(f"⚠️ Unable to generate GenAI Actions: {e}")
 
@@ -263,40 +227,26 @@ Input Data:
 # -----------------------------
 with main_tabs[6]:
     st.subheader("💬 Ask My Assistant")
-    col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
-    with col2:
-        question = st.text_input("💡 Ask a question about today's renewable performance:", key="ask_input_box")
-        if question:
-            try:
-                latest_row = prediction_df.iloc[-1]
-                latest_sensor = sensor_df.iloc[-1]
-                context = f"""
+    question = st.text_input("💡 Ask about today's renewable performance:")
+    if question:
+        try:
+            latest_row = demand_vs_output_df.iloc[-1]
+            latest_sensor = sensor_df.iloc[-1]
+            context = f"""
 Forecast Output: {latest_row['predicted_output_mw']:.2f} MW  
-Temperature: {latest_row['temperature_2m']:.1f} °C  
-Wind Speed: {latest_row['windspeed_10m']:.1f} m/s  
-Irradiance: {latest_row['shortwave_radiation']:.0f} W/m²  
+Market Demand: {latest_row['market_demand_mw']:.2f} MW  
 Voltage: {latest_sensor['voltage']:.1f} V  
 Current: {latest_sensor['current']:.1f} A  
-Inverter Status: {latest_sensor['inverter_status']}
 """
-                prompt = f"""
-You are a renewable energy assistant. Use the following input data and answer the user's question clearly and concisely.
-
-Input Data:
-{context}
-
-User Question:
-{question}
-"""
-                response = client.chat.completions.create(
-                    model=DEPLOYMENT_NAME,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=1500
-                )
-                st.markdown("### 🧠 Assistant Response")
-                st.markdown(response.choices[0].message.content)
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
+            prompt = f"Answer the following question based on input data:\n{context}\n\nQuestion: {question}"
+            response = client.chat.completions.create(
+                model=DEPLOYMENT_NAME,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=800
+            )
+            st.markdown(response.choices[0].message.content)
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
 
 # -----------------------------
 # Trading Assistant Tab
@@ -304,42 +254,26 @@ User Question:
 with main_tabs[7]:
     st.subheader("📊 Trading Assistant")
     try:
-        latest_row = prediction_df.iloc[-1]
-        market_row = uk_demand_df.iloc[-1]
+        latest_row = demand_vs_output_df.iloc[-1]
         forecast_output = latest_row['predicted_output_mw']
-        market_demand = market_row['market_demand_mw']
+        market_demand = latest_row['market_demand_mw']
         price_estimate = round(np.random.uniform(80, 140), 2)
         timestamp = latest_row['time']
+
         context = f"""
 Timestamp: {timestamp}
 Forecast Output: {forecast_output:.2f} MW
 Market Demand: {market_demand:.2f} MW
 Estimated Trading Price: £{price_estimate} per MWh
 """
-
         prompt = f"""
 You are a renewable energy trading advisor. Based on the following live forecast and market data, provide specific trading recommendations.
-
-1. Should the operator sell now?
-2. How many MWh should be sold?
-3. What price range (in GBP) should be targeted?
-4. Mention if there’s any surplus or shortage in supply.
-5. For each point, clearly state what input influenced your decision.
-
-Input Data:
-{context}
 """
-
         response = client.chat.completions.create(
             model=DEPLOYMENT_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500
+            messages=[{"role": "user", "content": prompt + "\n\n" + context}],
+            max_tokens=800
         )
-
-        st.markdown("### 📈 Live Trading Data")
-        st.markdown(context)
-        st.markdown("### 💼 GenAI Trading Strategy with Input Rationale")
         st.markdown(response.choices[0].message.content)
-
     except Exception as e:
         st.error(f"❌ Trading Assistant failed: {e}")
