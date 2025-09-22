@@ -1,4 +1,5 @@
-# renewable_forecast_assistant_full.py (Updated with Overview Tab)
+# renewable_forecast_assistant_full.py (Azure OpenAI version)
+# Streamlit dashboard for Renewable Energy Forecast & Trading Advisory
 
 import streamlit as st
 import pandas as pd
@@ -6,15 +7,28 @@ import numpy as np
 import requests
 import time
 import os
-from openai import OpenAI
+from openai import AzureOpenAI
 from dotenv import load_dotenv
 from streamlit_autorefresh import st_autorefresh
 
-# Load environment variables
+# -----------------------------
+# Azure OpenAI Setup
+# -----------------------------
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-raj")
 
-# Refresh every 60s
+client = AzureOpenAI(
+    api_key=AZURE_OPENAI_API_KEY,
+    api_version=AZURE_OPENAI_API_VERSION,
+    azure_endpoint=AZURE_OPENAI_ENDPOINT,
+)
+
+# -----------------------------
+# Auto-refresh
+# -----------------------------
 st.set_page_config(layout="wide")
 st_autorefresh(interval=60 * 1000, key='refresh_key')
 
@@ -23,7 +37,9 @@ remaining = 60 - int(time.time()) % 60
 mins, secs = divmod(remaining, 60)
 st.caption(f"\U0001F553 Last refreshed at {now.strftime('%H:%M:%S')}, \u23F3 Auto-refreshing in {mins:02d}:{secs:02d}")
 
-# --- Data Functions ---
+# -----------------------------
+# Data Functions
+# -----------------------------
 def fetch_weather_forecast(lat=28.61, lon=77.23):
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,windspeed_10m,shortwave_radiation&forecast_days=1&timezone=auto"
     response = requests.get(url)
@@ -74,7 +90,9 @@ def fetch_uk_market_demand():
     except:
         return pd.DataFrame()
 
-# Load actual data
+# -----------------------------
+# Load Data
+# -----------------------------
 weather_df = fetch_weather_forecast()
 sensor_df = simulate_live_sensors_stream()
 prediction_df = predict_output(weather_df, sensor_df)
@@ -82,7 +100,9 @@ hist_df = simulate_historical_production()
 uk_demand_df = fetch_uk_market_demand()
 uk_demand_df['predicted_output_mw'] = prediction_df['predicted_output_mw'].values
 
+# -----------------------------
 # Tabs
+# -----------------------------
 main_tabs = st.tabs([
     "📌 Overview",
     "🌤️ Weather Forecast",
@@ -94,7 +114,9 @@ main_tabs = st.tabs([
     "📊 Trading Assistant"
 ])
 
-# --- Overview Tab ---
+# -----------------------------
+# Overview Tab
+# -----------------------------
 with main_tabs[0]:
     st.subheader("📌 System Overview")
     st.markdown("""
@@ -103,7 +125,7 @@ with main_tabs[0]:
 - **Live Sensor Data**: Simulated (voltage, current, inverter status)
 - **Historical Production**: Simulated data (last 168 hours)
 - **UK Market Demand**: Simulated for demo
-- **GenAI Inputs**: Real-time prompt calls using OpenAI
+- **GenAI Inputs**: Real-time prompt calls using Azure OpenAI
 
 ### ⚙️ App Functions
 - Weather trends and sensor analysis
@@ -114,7 +136,7 @@ with main_tabs[0]:
 
 ### 🛠️ Tech Stack
 - **Streamlit**: Dashboard UI
-- **OpenAI GPT-3.5**: GenAI insights and strategy
+- **Azure OpenAI GPT-4o**: GenAI insights and strategy
 - **Open-Meteo API**: Weather feed
 - **Pandas / NumPy**: Processing
 - **Dotenv**: Secure key handling
@@ -135,22 +157,33 @@ with main_tabs[0]:
 - Integrate CI/CD, logging, testing, and monitoring
     """)
 
-# Reuse the original tab layout for tabs 1–7
+# -----------------------------
+# Weather Forecast Tab
+# -----------------------------
 with main_tabs[1]:
     st.subheader("🌤️ Weather Forecast (Open-Meteo)")
     st.dataframe(weather_df)
     st.line_chart(weather_df.set_index("time")[["temperature_2m", "windspeed_10m"]])
 
+# -----------------------------
+# Historical Production Tab
+# -----------------------------
 with main_tabs[2]:
     st.subheader("📈 Historical Production (Simulated)")
     st.line_chart(hist_df.set_index("timestamp")["actual_output_mw"])
 
+# -----------------------------
+# Live Sensor Feed Tab
+# -----------------------------
 with main_tabs[3]:
     st.subheader("🛰️ Live Sensor Feed (Last 10 mins)")
     st.info("⏱️ This feed auto-refreshes every 60 seconds.")
     st.dataframe(sensor_df)
     st.line_chart(sensor_df.set_index("timestamp")[["voltage", "current"]])
 
+# -----------------------------
+# Demand vs Output Tab
+# -----------------------------
 with main_tabs[4]:
     st.subheader("📉 Market Demand vs Predicted Output (UK Grid)")
     st.markdown("✅ **Data Source:** Live feed simulated from [National Grid ESO (UK)](https://www.nationalgrideso.com/energy-data-dashboard)")
@@ -169,7 +202,7 @@ You are a grid optimization analyst. Based on the table below of market demand v
 """
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": insight_prompt}],
             max_tokens=100
         )
@@ -179,6 +212,9 @@ You are a grid optimization analyst. Based on the table below of market demand v
         st.warning("Unable to fetch GenAI punchline.")
         st.error(f"Debug info: {str(e)}")
 
+# -----------------------------
+# GenAI Actions Tab
+# -----------------------------
 with main_tabs[5]:
     st.subheader("🧠 GenAI Actions")
     try:
@@ -209,7 +245,7 @@ Input Data:
 """
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=350
         )
@@ -222,6 +258,9 @@ Input Data:
     except Exception as e:
         st.error(f"⚠️ Unable to generate GenAI Actions: {e}")
 
+# -----------------------------
+# Ask My Assistant Tab
+# -----------------------------
 with main_tabs[6]:
     st.subheader("💬 Ask My Assistant")
     col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
@@ -250,7 +289,7 @@ User Question:
 {question}
 """
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model=DEPLOYMENT_NAME,
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=250
                 )
@@ -259,6 +298,9 @@ User Question:
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
+# -----------------------------
+# Trading Assistant Tab
+# -----------------------------
 with main_tabs[7]:
     st.subheader("📊 Trading Assistant")
     try:
@@ -289,7 +331,7 @@ Input Data:
 """
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=DEPLOYMENT_NAME,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=350
         )
